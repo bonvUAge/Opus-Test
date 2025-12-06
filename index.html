@@ -1,1 +1,97 @@
-# opus-test
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearts of Iron 4 Clone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="top-bar">
+            <div class="country-info">
+                <h2 id="country-name">Germany</h2>
+                <div class="stats">
+                    <span>👥 Manpower: <span id="manpower">1000000</span></span>
+                    <span>🏭 Factories: <span id="factories">50</span></span>
+                    <span>⚙️ Equipment: <span id="equipment">5000</span></span>
+                    <span>📅 Date: <span id="date">January 1, 1936</span></span>
+                </div>
+            </div>
+            <div class="controls">
+                <button id="speed-1" class="speed-btn active">▶</button>
+                <button id="speed-2" class="speed-btn">▶▶</button>
+                <button id="speed-3" class="speed-btn">▶▶▶</button>
+                <button id="pause" class="speed-btn">⏸</button>
+            </div>
+        </div>
+
+        <div id="main-content">
+            <div id="map-container">
+                <svg id="map" width="800" height="600"></svg>
+                <div id="province-info" class="hidden">
+                    <h3 id="province-name"></h3>
+                    <p>Owner: <span id="province-owner"></span></p>
+                    <p>Divisions: <span id="province-divisions">0</span></p>
+                    <p>Victory Points: <span id="province-vp">0</span></p>
+                    <button id="move-troops">Move Troops Here</button>
+                </div>
+            </div>
+
+            <div id="side-panel">
+                <div class="panel-section">
+                    <h3>Production</h3>
+                    <div class="production-item">
+                        <span>Infantry Division</span>
+                        <button class="produce-btn" data-type="infantry">Produce (🏭10)</button>
+                    </div>
+                    <div class="production-item">
+                        <span>Tank Division</span>
+                        <button class="produce-btn" data-type="tank">Produce (🏭25)</button>
+                    </div>
+                    <div class="production-item">
+                        <span>Fighter Wing</span>
+                        <button class="produce-btn" data-type="fighter">Produce (🏭15)</button>
+                    </div>
+                    <div id="production-queue"></div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>Military</h3>
+                    <div class="military-stats">
+                        <p>🪖 Infantry: <span id="infantry-count">10</span></p>
+                        <p>🛡️ Tanks: <span id="tank-count">2</span></p>
+                        <p>✈️ Fighters: <span id="fighter-count">5</span></p>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>Research</h3>
+                    <div class="research-item">
+                        <span>Infantry Equipment II</span>
+                        <button class="research-btn" data-tech="infantry2">Research</button>
+                    </div>
+                    <div class="research-item">
+                        <span>Tank Technology</span>
+                        <button class="research-btn" data-tech="tanks">Research</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>Diplomacy</h3>
+                    <button id="declare-war">Declare War on France</button>
+                    <div id="war-status" class="hidden">
+                        <p>⚔️ At war with: <span id="enemy"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="log">
+            <div id="log-content"></div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
