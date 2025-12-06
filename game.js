@@ -19,15 +19,16 @@ let gameState = {
     gameOver: false
 };
 
-// Input
+// Input - using keyCodes for layout-independent controls
 const keys = {};
 window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-    if (e.key === '1') {
+    keys[e.code] = true;
+    // Digit1 or Numpad1 for hero switch
+    if (e.code === 'Digit1' || e.code === 'Numpad1') {
         switchHero();
     }
 });
-window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('keyup', e => keys[e.code] = false);
 
 // Hero classes
 class Hero {
@@ -48,12 +49,12 @@ class Hero {
     }
 
     update(deltaTime, enemies) {
-        // Movement
+        // Movement - using KeyW, KeyA, KeyS, KeyD (physical keys)
         let dx = 0, dy = 0;
-        if (keys['w']) dy -= 1;
-        if (keys['s']) dy += 1;
-        if (keys['a']) dx -= 1;
-        if (keys['d']) dx += 1;
+        if (keys['KeyW']) dy -= 1;
+        if (keys['KeyS']) dy += 1;
+        if (keys['KeyA']) dx -= 1;
+        if (keys['KeyD']) dx += 1;
 
         if (dx !== 0 || dy !== 0) {
             const length = Math.sqrt(dx * dx + dy * dy);
