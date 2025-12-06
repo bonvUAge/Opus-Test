@@ -17,7 +17,7 @@ const keys = {};
 
 // Heroes
 class Hero {
-    constructor(name, type, health, damage, attackSpeed, attackRange, speed, color) {
+    constructor(name, type, health, damage, attackSpeed, attackRange, speed, symbol) {
         this.name = name;
         this.type = type;
         this.x = canvas.width / 2;
@@ -30,27 +30,26 @@ class Hero {
         this.attackSpeed = attackSpeed;
         this.attackRange = attackRange;
         this.speed = speed;
-        this.color = color;
+        this.symbol = symbol;
         this.lastAttack = 0;
         this.direction = 0;
     }
 
     draw() {
-        // Draw hero body
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+        // Draw in Dwarf Fortress ASCII style
+        ctx.font = 'bold 16px monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.symbol, this.x, this.y);
         
-        // Draw eyes
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(this.x - 4, this.y - 4, 3, 3);
-        ctx.fillRect(this.x + 2, this.y - 4, 3, 3);
-        
-        // Draw weapon indicator
-        ctx.fillStyle = '#ffd700';
+        // Draw attack range circle when hero is melee
         if (this.type === 'melee') {
-            ctx.fillRect(this.x + 6, this.y - 2, 6, 4); // Sword
-        } else {
-            ctx.fillRect(this.x + 6, this.y - 1, 8, 2); // Bow
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+            ctx.stroke();
         }
     }
 
@@ -78,19 +77,27 @@ class Hero {
     attack(enemies, projectiles, currentTime) {
         if (currentTime - this.lastAttack < this.attackSpeed) return;
 
-        let target = this.findClosestEnemy(enemies);
-        if (!target) return;
-
-        const dist = this.distance(target);
-        
-        if (this.type === 'melee' && dist < this.attackRange) {
-            target.health -= this.damage;
-            this.lastAttack = currentTime;
-            if (target.health <= 0) {
-                gameState.kills++;
-                gameState.score += target.isBoss ? 500 : 10;
+        if (this.type === 'melee') {
+            // Vampire survivors style: attack all enemies in range
+            let attacked = false;
+            for (let enemy of enemies) {
+                const dist = this.distance(enemy);
+                if (dist < this.attackRange) {
+                    enemy.health -= this.damage;
+                    attacked = true;
+                    if (enemy.health <= 0) {
+                        gameState.kills++;
+                        gameState.score += enemy.isBoss ? 500 : 10;
+                    }
+                }
+            }
+            if (attacked) {
+                this.lastAttack = currentTime;
             }
         } else if (this.type === 'ranged') {
+            let target = this.findClosestEnemy(enemies);
+            if (!target) return;
+            
             const angle = Math.atan2(target.y - this.y, target.x - this.x);
             projectiles.push(new Projectile(this.x, this.y, angle, this.damage));
             this.lastAttack = currentTime;
@@ -117,38 +124,36 @@ class Hero {
 
 // Enemies
 class Enemy {
-    constructor(x, y, health, damage, speed, color, isBoss = false) {
+    constructor(x, y, health, damage, speed, symbol, isBoss = false) {
         this.x = x;
         this.y = y;
-        this.width = isBoss ? 32 : 12;
-        this.height = isBoss ? 32 : 12;
+        this.width = isBoss ? 20 : 16;
+        this.height = isBoss ? 20 : 16;
         this.health = health;
         this.maxHealth = health;
         this.damage = damage;
         this.speed = speed;
-        this.color = color;
+        this.symbol = symbol;
         this.isBoss = isBoss;
         this.lastAttack = 0;
     }
 
     draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
-        
-        // Draw evil eyes
-        ctx.fillStyle = '#ff0000';
-        const eyeSize = this.isBoss ? 4 : 2;
-        ctx.fillRect(this.x - 4, this.y - 3, eyeSize, eyeSize);
-        ctx.fillRect(this.x + 1, this.y - 3, eyeSize, eyeSize);
+        // Draw in Dwarf Fortress ASCII style
+        ctx.font = `bold ${this.isBoss ? 20 : 16}px monospace`;
+        ctx.fillStyle = this.isBoss ? '#ff00ff' : '#ff0000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.symbol, this.x, this.y);
 
         // Health bar for boss
         if (this.isBoss) {
             const barWidth = 40;
-            const barHeight = 4;
+            const barHeight = 3;
             ctx.fillStyle = '#333';
-            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 10, barWidth, barHeight);
-            ctx.fillStyle = '#ff0000';
-            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 10, (this.health / this.maxHealth) * barWidth, barHeight);
+            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, barWidth, barHeight);
+            ctx.fillStyle = '#ff00ff';
+            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, (this.health / this.maxHealth) * barWidth, barHeight);
         }
     }
 
@@ -175,16 +180,20 @@ class Projectile {
         this.angle = angle;
         this.speed = 6;
         this.damage = damage;
-        this.width = 6;
-        this.height = 3;
+        this.width = 8;
+        this.height = 8;
     }
 
     draw() {
+        // Draw arrow in ASCII style
+        ctx.font = 'bold 12px monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.fillStyle = '#ffff00';
-        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+        ctx.fillText('→', 0, 0);
         ctx.restore();
     }
 
@@ -203,10 +212,10 @@ class Projectile {
     }
 }
 
-// Initialize heroes
+// Initialize heroes with ASCII symbols
 const heroes = [
-    new Hero('Варвар', 'melee', 100, 25, 800, 30, 3, '#ff6b6b'),
-    new Hero('Лучник', 'ranged', 80, 15, 500, 300, 2.5, '#4ecdc4')
+    new Hero('Варвар', 'melee', 100, 25, 800, 50, 3, '@'),
+    new Hero('Лучник', 'ranged', 80, 15, 500, 300, 2.5, 'i')
 ];
 
 let currentHero = heroes[0];
@@ -228,13 +237,18 @@ function spawnEnemy() {
     
     const health = 30 + gameState.wave * 10;
     const damage = 5 + gameState.wave * 2;
-    enemies.push(new Enemy(x, y, health, damage, 1 + gameState.wave * 0.1, '#8b4513'));
+    
+    // Random enemy types in DF style
+    const enemyTypes = ['g', 'o', 'k', 'T', 'D'];
+    const symbol = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+    
+    enemies.push(new Enemy(x, y, health, damage, 1 + gameState.wave * 0.1, symbol));
 }
 
 function spawnBoss() {
     const x = canvas.width / 2;
     const y = -50;
-    const boss = new Enemy(x, y, 500 + gameState.wave * 200, 20, 2, '#4a0e4e', true);
+    const boss = new Enemy(x, y, 500 + gameState.wave * 200, 20, 2, 'Ð', true);
     enemies.push(boss);
     gameState.bossSpawned = true;
 }
@@ -253,8 +267,14 @@ window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
     
     if (e.key === '1') {
+        const oldHero = currentHero;
         gameState.currentHero = (gameState.currentHero + 1) % heroes.length;
         currentHero = heroes[gameState.currentHero];
+        
+        // Transfer position from old hero to new hero
+        currentHero.x = oldHero.x;
+        currentHero.y = oldHero.y;
+        
         updateUI();
     }
 });
@@ -286,24 +306,35 @@ function gameLoop() {
 
     const currentTime = Date.now();
     
-    // Clear canvas
-    ctx.fillStyle = '#0f3460';
+    // Clear canvas with DF-style background
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw grid
-    ctx.strokeStyle = '#1a4d7a';
+    // Draw simple grid in DF style
+    ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 40) {
+    for (let i = 0; i < canvas.width; i += 16) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, canvas.height);
         ctx.stroke();
     }
-    for (let i = 0; i < canvas.height; i += 40) {
+    for (let i = 0; i < canvas.height; i += 16) {
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(canvas.width, i);
         ctx.stroke();
+    }
+    
+    // Draw some random floor tiles for DF atmosphere
+    ctx.fillStyle = '#0a0a0a';
+    ctx.font = '12px monospace';
+    for (let i = 0; i < canvas.width; i += 32) {
+        for (let j = 0; j < canvas.height; j += 32) {
+            if (Math.random() > 0.7) {
+                ctx.fillText('.', i, j);
+            }
+        }
     }
     
     // Update and draw hero
