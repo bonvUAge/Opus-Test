@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vampire Survival - Pixel Game</title>
+    <title>Grand Strategy Game</title>
     <style>
         * {
             margin: 0;
@@ -11,119 +11,259 @@
             box-sizing: border-box;
         }
         body {
+            font-family: 'Arial', sans-serif;
             background: #1a1a1a;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-family: 'Courier New', monospace;
             color: #fff;
+            overflow: hidden;
         }
         #gameContainer {
-            text-align: center;
-        }
-        canvas {
-            border: 4px solid #444;
-            background: #2a2a2a;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-        }
-        #ui {
-            margin-top: 20px;
             display: flex;
-            justify-content: space-around;
-            max-width: 800px;
-            gap: 20px;
+            height: 100vh;
         }
-        .stat {
-            background: #333;
-            padding: 10px 20px;
-            border: 2px solid #555;
-            border-radius: 5px;
+        #mapContainer {
+            flex: 1;
+            position: relative;
+            background: #2a2a2a;
+        }
+        #mapCanvas {
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        #sidebar {
+            width: 300px;
+            background: #252525;
+            border-left: 2px solid #444;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        .panel {
+            background: #2d2d2d;
+            border: 1px solid #444;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .panel h3 {
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
         }
         .stat-label {
-            font-size: 12px;
-            color: #888;
+            color: #aaa;
         }
         .stat-value {
-            font-size: 20px;
+            color: #fff;
             font-weight: bold;
-            color: #0f0;
         }
-        #instructions {
-            margin-top: 20px;
-            color: #aaa;
+        .button {
+            background: #444;
+            border: 1px solid #666;
+            color: #fff;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            width: 100%;
+            margin: 5px 0;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        .button:hover {
+            background: #555;
+        }
+        .button:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .button.primary {
+            background: #c44;
+            border-color: #d55;
+        }
+        .button.primary:hover {
+            background: #d55;
+        }
+        #topBar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #444;
+            z-index: 10;
+        }
+        .resource {
+            display: flex;
+            align-items: center;
+            margin: 0 15px;
+        }
+        .resource-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .resource-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #dateDisplay {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        .province-info {
+            font-size: 12px;
+            color: #ccc;
+            margin: 5px 0;
+        }
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+        .control-btn {
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 5px 15px;
+            cursor: pointer;
+            border-radius: 3px;
             font-size: 14px;
         }
-        #gameOver {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            padding: 40px;
-            border: 4px solid #f00;
-            display: none;
-            text-align: center;
+        .control-btn:hover {
+            background: #444;
         }
-        #gameOver h2 {
-            color: #f00;
-            font-size: 48px;
-            margin-bottom: 20px;
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 8px 0;
         }
-        #gameOver button {
-            background: #f00;
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a4, #6d6);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
             color: #fff;
-            border: none;
-            padding: 15px 30px;
-            font-size: 18px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            margin-top: 20px;
         }
-        #gameOver button:hover {
-            background: #ff3333;
+        .army-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .army-item {
+            background: #1a1a1a;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border: 1px solid #444;
+            font-size: 12px;
+        }
+        .war-status {
+            color: #f44;
+            font-weight: bold;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
     <div id="gameContainer">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="ui">
-            <div class="stat">
-                <div class="stat-label">Герой</div>
-                <div class="stat-value" id="heroName">Варвар</div>
+        <div id="mapContainer">
+            <div id="topBar">
+                <div id="dateDisplay">1 Января 1936</div>
+                <div style="display: flex;">
+                    <div class="resource">
+                        <div class="resource-icon">🏭</div>
+                        <div class="resource-value" id="industry">0</div>
+                    </div>
+                    <div class="resource">
+                        <div class="resource-icon">⚙️</div>
+                        <div class="resource-value" id="equipment">0</div>
+                    </div>
+                    <div class="resource">
+                        <div class="resource-icon">👥</div>
+                        <div class="resource-value" id="manpower">0</div>
+                    </div>
+                    <div class="resource">
+                        <div class="resource-icon">⚡</div>
+                        <div class="resource-value" id="power">0</div>
+                    </div>
+                </div>
+                <div id="controls">
+                    <button class="control-btn" id="pauseBtn">⏸️ Пауза</button>
+                    <button class="control-btn" id="speedBtn">⏩ x1</button>
+                </div>
             </div>
-            <div class="stat">
-                <div class="stat-label">HP</div>
-                <div class="stat-value" id="hp">100</div>
+            <canvas id="mapCanvas"></canvas>
+        </div>
+        <div id="sidebar">
+            <div class="panel">
+                <h3>🏴 Ваша Нация</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Страна:</span>
+                    <span class="stat-value" id="countryName">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Территория:</span>
+                    <span class="stat-value" id="provinces">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Население:</span>
+                    <span class="stat-value" id="population">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Стабильность:</span>
+                    <span class="stat-value" id="stability">100%</span>
+                </div>
             </div>
-            <div class="stat">
-                <div class="stat-label">Уровень</div>
-                <div class="stat-value" id="level">1</div>
+
+            <div class="panel">
+                <h3>📍 Выбранная провинция</h3>
+                <div id="provinceInfo">
+                    <p class="province-info">Кликните на провинцию</p>
+                </div>
             </div>
-            <div class="stat">
-                <div class="stat-label">Опыт</div>
-                <div class="stat-value" id="exp">0</div>
+
+            <div class="panel">
+                <h3>⚔️ Военные действия</h3>
+                <div id="warStatus" class="province-info">Мир</div>
+                <div class="army-list" id="armyList"></div>
+                <button class="button" id="recruitBtn">Набрать дивизию (💰50 ⚙️100)</button>
             </div>
-            <div class="stat">
-                <div class="stat-label">Волна</div>
-                <div class="stat-value" id="wave">1</div>
+
+            <div class="panel">
+                <h3>🏗️ Строительство</h3>
+                <button class="button" id="buildFactoryBtn">Построить завод (💰100)</button>
+                <div class="progress-bar" id="buildProgress" style="display: none;">
+                    <div class="progress-fill" id="buildProgressFill">0%</div>
+                </div>
             </div>
-            <div class="stat">
-                <div class="stat-label">Убито</div>
-                <div class="stat-value" id="kills">0</div>
+
+            <div class="panel">
+                <h3>🌍 Дипломатия</h3>
+                <button class="button primary" id="declareWarBtn">Объявить войну</button>
             </div>
         </div>
-        <div id="instructions">
-            <p>WASD - движение | Клавиша 1 - смена героя | Автоматическая атака</p>
-        </div>
-    </div>
-    <div id="gameOver">
-        <h2>GAME OVER</h2>
-        <p>Убито врагов: <span id="finalKills">0</span></p>
-        <p>Достигнута волна: <span id="finalWave">0</span></p>
-        <button onclick="location.reload()">НАЧАТЬ ЗАНОВО</button>
     </div>
     <script src="game.js"></script>
 </body>
