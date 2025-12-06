@@ -1,106 +1,95 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Game constants
+const TILE_SIZE = 16;
+const WAVE_DURATION = 30000; // 30 seconds per wave
+const BOSS_WAVE = 5;
+
 // Game state
 let gameState = {
-    score: 0,
+    currentHero: 0, // 0 = barbarian, 1 = archer
+    level: 1,
+    exp: 0,
+    expToNext: 100,
     wave: 1,
     kills: 0,
-    enemiesPerWave: 5,
-    currentHero: 0,
-    gameOver: false,
-    bossSpawned: false
+    waveTimer: 0,
+    bossSpawned: false,
+    gameOver: false
 };
 
-// Keys
+// Input
 const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === '1') {
+        switchHero();
+    }
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// Heroes
+// Hero classes
 class Hero {
-    constructor(name, type, health, damage, attackSpeed, attackRange, speed, symbol) {
-        this.name = name;
-        this.type = type;
-        this.x = canvas.width / 2;
-        this.y = canvas.height / 2;
-        this.width = 16;
-        this.height = 16;
-        this.health = health;
-        this.maxHealth = health;
-        this.damage = damage;
-        this.attackSpeed = attackSpeed;
-        this.attackRange = attackRange;
-        this.speed = speed;
-        this.symbol = symbol;
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // 'barbarian' or 'archer'
+        this.maxHp = type === 'barbarian' ? 150 : 80;
+        this.hp = this.maxHp;
+        this.speed = type === 'barbarian' ? 2 : 2.5;
+        this.attackRange = type === 'barbarian' ? 40 : 200;
+        this.attackDamage = type === 'barbarian' ? 25 : 15;
+        this.attackSpeed = type === 'barbarian' ? 1000 : 800; // ms
         this.lastAttack = 0;
-        this.direction = 0;
+        this.width = TILE_SIZE;
+        this.height = TILE_SIZE;
+        this.color = type === 'barbarian' ? '#f44' : '#4f4';
     }
 
-    draw() {
-        // Draw in Dwarf Fortress ASCII style
-        ctx.font = 'bold 16px monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.symbol, this.x, this.y);
-        
-        // Draw attack range circle when hero is melee
-        if (this.type === 'melee') {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-    }
-
-    move() {
+    update(deltaTime, enemies) {
+        // Movement
         let dx = 0, dy = 0;
-        if (keys['w'] || keys['W']) dy -= 1;
-        if (keys['s'] || keys['S']) dy += 1;
-        if (keys['a'] || keys['A']) dx -= 1;
-        if (keys['d'] || keys['D']) dx += 1;
+        if (keys['w']) dy -= 1;
+        if (keys['s']) dy += 1;
+        if (keys['a']) dx -= 1;
+        if (keys['d']) dx += 1;
 
         if (dx !== 0 || dy !== 0) {
-            const magnitude = Math.sqrt(dx * dx + dy * dy);
-            dx /= magnitude;
-            dy /= magnitude;
-            this.direction = Math.atan2(dy, dx);
+            const length = Math.sqrt(dx * dx + dy * dy);
+            dx /= length;
+            dy /= length;
         }
 
         this.x += dx * this.speed;
         this.y += dy * this.speed;
 
+        // Keep in bounds
         this.x = Math.max(this.width/2, Math.min(canvas.width - this.width/2, this.x));
         this.y = Math.max(this.height/2, Math.min(canvas.height - this.height/2, this.y));
+
+        // Auto-attack
+        this.lastAttack += deltaTime;
+        if (this.lastAttack >= this.attackSpeed) {
+            this.attack(enemies);
+            this.lastAttack = 0;
+        }
     }
 
-    attack(enemies, projectiles, currentTime) {
-        if (currentTime - this.lastAttack < this.attackSpeed) return;
-
-        if (this.type === 'melee') {
-            // Vampire survivors style: attack all enemies in range
-            let attacked = false;
-            for (let enemy of enemies) {
-                const dist = this.distance(enemy);
-                if (dist < this.attackRange) {
-                    enemy.health -= this.damage;
-                    attacked = true;
-                    if (enemy.health <= 0) {
-                        gameState.kills++;
-                        gameState.score += enemy.isBoss ? 500 : 10;
-                    }
+    attack(enemies) {
+        const closest = this.findClosestEnemy(enemies);
+        if (closest) {
+            const dist = this.distanceTo(closest);
+            if (dist <= this.attackRange) {
+                if (this.type === 'barbarian') {
+                    // Melee attack
+                    closest.takeDamage(this.attackDamage);
+                    this.createAttackEffect(closest.x, closest.y, '#ff0');
+                } else {
+                    // Ranged attack - create projectile
+                    projectiles.push(new Projectile(this.x, this.y, closest.x, closest.y, this.attackDamage));
                 }
             }
-            if (attacked) {
-                this.lastAttack = currentTime;
-            }
-        } else if (this.type === 'ranged') {
-            let target = this.findClosestEnemy(enemies);
-            if (!target) return;
-            
-            const angle = Math.atan2(target.y - this.y, target.x - this.x);
-            projectiles.push(new Projectile(this.x, this.y, angle, this.damage));
-            this.lastAttack = currentTime;
         }
     }
 
@@ -108,302 +97,367 @@ class Hero {
         let closest = null;
         let minDist = Infinity;
         for (let enemy of enemies) {
-            const dist = this.distance(enemy);
-            if (dist < minDist) {
-                minDist = dist;
-                closest = enemy;
+            if (enemy.hp > 0) {
+                const dist = this.distanceTo(enemy);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = enemy;
+                }
             }
         }
         return closest;
     }
 
-    distance(entity) {
-        return Math.sqrt((this.x - entity.x) ** 2 + (this.y - entity.y) ** 2);
+    distanceTo(other) {
+        return Math.sqrt((this.x - other.x) ** 2 + (this.y - other.y) ** 2);
+    }
+
+    takeDamage(amount) {
+        this.hp -= amount;
+        if (this.hp <= 0) {
+            this.hp = 0;
+            gameState.gameOver = true;
+        }
+    }
+
+    createAttackEffect(x, y, color) {
+        effects.push(new Effect(x, y, color, 200));
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+        
+        // Draw weapon indicator
+        ctx.fillStyle = '#fff';
+        if (this.type === 'barbarian') {
+            // Sword
+            ctx.fillRect(this.x + this.width/2, this.y - 2, 8, 4);
+        } else {
+            // Bow
+            ctx.fillRect(this.x - this.width/2 - 4, this.y - 4, 4, 8);
+        }
+
+        // HP bar
+        const barWidth = this.width;
+        const barHeight = 4;
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, barWidth, barHeight);
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, barWidth * (this.hp / this.maxHp), barHeight);
     }
 }
 
-// Enemies
+// Enemy class
 class Enemy {
-    constructor(x, y, health, damage, speed, symbol, isBoss = false) {
+    constructor(x, y, type = 'normal') {
         this.x = x;
         this.y = y;
-        this.width = isBoss ? 20 : 16;
-        this.height = isBoss ? 20 : 16;
-        this.health = health;
-        this.maxHealth = health;
-        this.damage = damage;
-        this.speed = speed;
-        this.symbol = symbol;
-        this.isBoss = isBoss;
-        this.lastAttack = 0;
+        this.type = type;
+        this.maxHp = type === 'boss' ? 500 : 30;
+        this.hp = this.maxHp;
+        this.speed = type === 'boss' ? 0.8 : 1.2;
+        this.damage = type === 'boss' ? 20 : 5;
+        this.width = type === 'boss' ? TILE_SIZE * 2 : TILE_SIZE;
+        this.height = type === 'boss' ? TILE_SIZE * 2 : TILE_SIZE;
+        this.color = type === 'boss' ? '#a0f' : '#f00';
+        this.expValue = type === 'boss' ? 100 : 10;
+        this.attackCooldown = 0;
     }
 
-    draw() {
-        // Draw in Dwarf Fortress ASCII style
-        ctx.font = `bold ${this.isBoss ? 20 : 16}px monospace`;
-        ctx.fillStyle = this.isBoss ? '#ff00ff' : '#ff0000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.symbol, this.x, this.y);
+    update(deltaTime, hero) {
+        // Move towards hero
+        const dx = hero.x - this.x;
+        const dy = hero.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Health bar for boss
-        if (this.isBoss) {
-            const barWidth = 40;
-            const barHeight = 3;
-            ctx.fillStyle = '#333';
-            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, barWidth, barHeight);
-            ctx.fillStyle = '#ff00ff';
-            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 8, (this.health / this.maxHealth) * barWidth, barHeight);
+        if (dist > 0) {
+            this.x += (dx / dist) * this.speed;
+            this.y += (dy / dist) * this.speed;
+        }
+
+        // Attack hero on collision
+        if (dist < this.width) {
+            this.attackCooldown -= deltaTime;
+            if (this.attackCooldown <= 0) {
+                hero.takeDamage(this.damage);
+                this.attackCooldown = 1000;
+            }
         }
     }
 
-    move(hero) {
-        const angle = Math.atan2(hero.y - this.y, hero.x - this.x);
-        this.x += Math.cos(angle) * this.speed;
-        this.y += Math.sin(angle) * this.speed;
+    takeDamage(amount) {
+        this.hp -= amount;
+        if (this.hp <= 0) {
+            this.hp = 0;
+            this.die();
+        }
     }
 
-    attack(hero, currentTime) {
-        const dist = Math.sqrt((this.x - hero.x) ** 2 + (this.y - hero.y) ** 2);
-        if (dist < 20 && currentTime - this.lastAttack > 1000) {
-            hero.health -= this.damage;
-            this.lastAttack = currentTime;
+    die() {
+        gameState.kills++;
+        gameState.exp += this.expValue;
+        effects.push(new Effect(this.x, this.y, '#ff0', 300));
+        
+        // Check level up
+        if (gameState.exp >= gameState.expToNext) {
+            gameState.level++;
+            gameState.exp = 0;
+            gameState.expToNext = Math.floor(gameState.expToNext * 1.5);
+            
+            // Level up bonuses
+            heroes[gameState.currentHero].maxHp += 10;
+            heroes[gameState.currentHero].hp = Math.min(heroes[gameState.currentHero].hp + 20, heroes[gameState.currentHero].maxHp);
+            heroes[gameState.currentHero].attackDamage += 5;
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+
+        // Draw eyes
+        ctx.fillStyle = '#fff';
+        const eyeSize = this.type === 'boss' ? 4 : 2;
+        const eyeOffset = this.width / 4;
+        ctx.fillRect(this.x - eyeOffset, this.y - eyeOffset, eyeSize, eyeSize);
+        ctx.fillRect(this.x + eyeOffset - eyeSize, this.y - eyeOffset, eyeSize, eyeSize);
+
+        // HP bar
+        if (this.type === 'boss') {
+            const barWidth = this.width;
+            const barHeight = 6;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 12, barWidth, barHeight);
+            ctx.fillStyle = '#f0f';
+            ctx.fillRect(this.x - barWidth/2, this.y - this.height/2 - 12, barWidth * (this.hp / this.maxHp), barHeight);
         }
     }
 }
 
-// Projectiles
+// Projectile class
 class Projectile {
-    constructor(x, y, angle, damage) {
+    constructor(x, y, targetX, targetY, damage) {
         this.x = x;
         this.y = y;
-        this.angle = angle;
-        this.speed = 6;
         this.damage = damage;
-        this.width = 8;
-        this.height = 8;
+        this.speed = 5;
+        this.size = 4;
+        
+        const dx = targetX - x;
+        const dy = targetY - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        this.vx = (dx / dist) * this.speed;
+        this.vy = (dy / dist) * this.speed;
+        this.active = true;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Check bounds
+        if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+            this.active = false;
+        }
+
+        // Check collision with enemies
+        for (let enemy of enemies) {
+            if (enemy.hp > 0) {
+                const dist = Math.sqrt((this.x - enemy.x) ** 2 + (this.y - enemy.y) ** 2);
+                if (dist < enemy.width / 2) {
+                    enemy.takeDamage(this.damage);
+                    this.active = false;
+                    effects.push(new Effect(this.x, this.y, '#ff0', 150));
+                    break;
+                }
+            }
+        }
     }
 
     draw() {
-        // Draw arrow in ASCII style
-        ctx.font = 'bold 12px monospace';
-        ctx.fillStyle = '#ffff00';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        ctx.fillText('→', 0, 0);
-        ctx.restore();
-    }
-
-    move() {
-        this.x += Math.cos(this.angle) * this.speed;
-        this.y += Math.sin(this.angle) * this.speed;
-    }
-
-    isOffScreen() {
-        return this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height;
-    }
-
-    hits(enemy) {
-        return Math.abs(this.x - enemy.x) < enemy.width/2 + this.width/2 &&
-               Math.abs(this.y - enemy.y) < enemy.height/2 + this.height/2;
+        ctx.fillStyle = '#0ff';
+        ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
     }
 }
 
-// Initialize heroes with ASCII symbols
-const heroes = [
-    new Hero('Варвар', 'melee', 100, 25, 800, 50, 3, '@'),
-    new Hero('Лучник', 'ranged', 80, 15, 500, 300, 2.5, 'i')
-];
+// Visual effect
+class Effect {
+    constructor(x, y, color, duration) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.duration = duration;
+        this.timer = 0;
+    }
 
-let currentHero = heroes[0];
+    update(deltaTime) {
+        this.timer += deltaTime;
+    }
+
+    isExpired() {
+        return this.timer >= this.duration;
+    }
+
+    draw() {
+        const alpha = 1 - (this.timer / this.duration);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = this.color;
+        const size = 8 + (this.timer / this.duration) * 8;
+        ctx.fillRect(this.x - size/2, this.y - size/2, size, size);
+        ctx.globalAlpha = 1;
+    }
+}
+
+// Initialize
+const heroes = [
+    new Hero(canvas.width / 2, canvas.height / 2, 'barbarian'),
+    new Hero(canvas.width / 2, canvas.height / 2, 'archer')
+];
 let enemies = [];
 let projectiles = [];
-let waveEnemiesKilled = 0;
+let effects = [];
 
-// Spawn enemies
-function spawnEnemy() {
-    const side = Math.floor(Math.random() * 4);
-    let x, y;
+function switchHero() {
+    const oldHero = heroes[gameState.currentHero];
+    gameState.currentHero = (gameState.currentHero + 1) % 2;
+    const newHero = heroes[gameState.currentHero];
     
-    switch(side) {
-        case 0: x = Math.random() * canvas.width; y = -20; break;
-        case 1: x = canvas.width + 20; y = Math.random() * canvas.height; break;
-        case 2: x = Math.random() * canvas.width; y = canvas.height + 20; break;
-        case 3: x = -20; y = Math.random() * canvas.height; break;
-    }
+    // Transfer position
+    newHero.x = oldHero.x;
+    newHero.y = oldHero.y;
     
-    const health = 30 + gameState.wave * 10;
-    const damage = 5 + gameState.wave * 2;
-    
-    // Random enemy types in DF style
-    const enemyTypes = ['g', 'o', 'k', 'T', 'D'];
-    const symbol = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-    
-    enemies.push(new Enemy(x, y, health, damage, 1 + gameState.wave * 0.1, symbol));
-}
-
-function spawnBoss() {
-    const x = canvas.width / 2;
-    const y = -50;
-    const boss = new Enemy(x, y, 500 + gameState.wave * 200, 20, 2, 'Ð', true);
-    enemies.push(boss);
-    gameState.bossSpawned = true;
+    updateUI();
 }
 
 function spawnWave() {
-    waveEnemiesKilled = 0;
-    const enemyCount = gameState.enemiesPerWave + gameState.wave * 2;
+    const numEnemies = 5 + gameState.wave * 3;
     
-    for (let i = 0; i < enemyCount; i++) {
-        setTimeout(() => spawnEnemy(), i * 500);
+    for (let i = 0; i < numEnemies; i++) {
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        
+        switch(side) {
+            case 0: x = Math.random() * canvas.width; y = -20; break;
+            case 1: x = canvas.width + 20; y = Math.random() * canvas.height; break;
+            case 2: x = Math.random() * canvas.width; y = canvas.height + 20; break;
+            case 3: x = -20; y = Math.random() * canvas.height; break;
+        }
+        
+        enemies.push(new Enemy(x, y));
+    }
+    
+    // Spawn boss on wave 5
+    if (gameState.wave >= BOSS_WAVE && !gameState.bossSpawned) {
+        enemies.push(new Enemy(canvas.width / 2, -50, 'boss'));
+        gameState.bossSpawned = true;
     }
 }
 
-// Input handling
-window.addEventListener('keydown', (e) => {
-    keys[e.key] = true;
-    
-    if (e.key === '1') {
-        const oldHero = currentHero;
-        gameState.currentHero = (gameState.currentHero + 1) % heroes.length;
-        currentHero = heroes[gameState.currentHero];
-        
-        // Transfer position from old hero to new hero
-        currentHero.x = oldHero.x;
-        currentHero.y = oldHero.y;
-        
-        updateUI();
-    }
-});
-
-window.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
-});
-
-// Update UI
 function updateUI() {
-    document.getElementById('heroName').textContent = currentHero.name;
+    const hero = heroes[gameState.currentHero];
+    document.getElementById('heroName').textContent = hero.type === 'barbarian' ? 'Варвар' : 'Лучник';
+    document.getElementById('hp').textContent = Math.floor(hero.hp);
+    document.getElementById('level').textContent = gameState.level;
+    document.getElementById('exp').textContent = gameState.exp + '/' + gameState.expToNext;
     document.getElementById('wave').textContent = gameState.wave;
-    document.getElementById('score').textContent = gameState.score;
     document.getElementById('kills').textContent = gameState.kills;
-    document.getElementById('health').textContent = Math.max(0, Math.floor(currentHero.health));
-    
-    const healthPercent = Math.max(0, (currentHero.health / currentHero.maxHealth) * 100);
-    document.getElementById('healthBar').style.width = healthPercent + '%';
 }
 
 function showGameOver() {
-    document.getElementById('finalScore').textContent = gameState.score;
+    document.getElementById('finalKills').textContent = gameState.kills;
+    document.getElementById('finalWave').textContent = gameState.wave;
     document.getElementById('gameOver').style.display = 'block';
 }
 
 // Game loop
-function gameLoop() {
-    if (gameState.gameOver) return;
+let lastTime = performance.now();
 
-    const currentTime = Date.now();
-    
-    // Clear canvas with DF-style background
-    ctx.fillStyle = '#000000';
+function gameLoop(currentTime) {
+    const deltaTime = currentTime - lastTime;
+    lastTime = currentTime;
+
+    if (gameState.gameOver) {
+        showGameOver();
+        return;
+    }
+
+    // Update wave timer
+    gameState.waveTimer += deltaTime;
+    if (gameState.waveTimer >= WAVE_DURATION) {
+        gameState.wave++;
+        gameState.waveTimer = 0;
+        spawnWave();
+    }
+
+    // Update
+    const currentHero = heroes[gameState.currentHero];
+    currentHero.update(deltaTime, enemies);
+
+    for (let enemy of enemies) {
+        if (enemy.hp > 0) {
+            enemy.update(deltaTime, currentHero);
+        }
+    }
+
+    for (let projectile of projectiles) {
+        projectile.update();
+    }
+
+    for (let effect of effects) {
+        effect.update(deltaTime);
+    }
+
+    // Clean up
+    enemies = enemies.filter(e => e.hp > 0);
+    projectiles = projectiles.filter(p => p.active);
+    effects = effects.filter(e => !e.isExpired());
+
+    // Draw
+    ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw simple grid in DF style
-    ctx.strokeStyle = '#1a1a1a';
+
+    // Draw grid
+    ctx.strokeStyle = '#2a2a2a';
     ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 16) {
+    for (let i = 0; i < canvas.width; i += TILE_SIZE) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, canvas.height);
         ctx.stroke();
     }
-    for (let i = 0; i < canvas.height; i += 16) {
+    for (let i = 0; i < canvas.height; i += TILE_SIZE) {
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(canvas.width, i);
         ctx.stroke();
     }
-    
-    // Draw some random floor tiles for DF atmosphere
-    ctx.fillStyle = '#0a0a0a';
-    ctx.font = '12px monospace';
-    for (let i = 0; i < canvas.width; i += 32) {
-        for (let j = 0; j < canvas.height; j += 32) {
-            if (Math.random() > 0.7) {
-                ctx.fillText('.', i, j);
-            }
-        }
+
+    // Draw game objects
+    for (let effect of effects) {
+        effect.draw();
     }
     
-    // Update and draw hero
-    currentHero.move();
-    currentHero.attack(enemies, projectiles, currentTime);
-    currentHero.draw();
-    
-    // Update and draw projectiles
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-        const proj = projectiles[i];
-        proj.move();
-        proj.draw();
-        
-        if (proj.isOffScreen()) {
-            projectiles.splice(i, 1);
-            continue;
-        }
-        
-        for (let j = enemies.length - 1; j >= 0; j--) {
-            if (proj.hits(enemies[j])) {
-                enemies[j].health -= proj.damage;
-                projectiles.splice(i, 1);
-                if (enemies[j].health <= 0) {
-                    gameState.kills++;
-                    gameState.score += enemies[j].isBoss ? 500 : 10;
-                    waveEnemiesKilled++;
-                }
-                break;
-            }
-        }
-    }
-    
-    // Update and draw enemies
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        enemy.move(currentHero);
-        enemy.attack(currentHero, currentTime);
+    for (let enemy of enemies) {
         enemy.draw();
-        
-        if (enemy.health <= 0) {
-            enemies.splice(i, 1);
-            if (enemy.isBoss) {
-                gameState.bossSpawned = false;
-            }
-        }
     }
-    
-    // Check wave completion
-    if (enemies.length === 0 && waveEnemiesKilled >= gameState.enemiesPerWave + (gameState.wave - 1) * 2) {
-        gameState.wave++;
-        
-        if (gameState.wave % 5 === 0 && !gameState.bossSpawned) {
-            setTimeout(() => spawnBoss(), 2000);
-        } else if (!gameState.bossSpawned) {
-            setTimeout(() => spawnWave(), 2000);
-        }
+
+    for (let projectile of projectiles) {
+        projectile.draw();
     }
-    
-    // Check game over
-    if (currentHero.health <= 0) {
-        gameState.gameOver = true;
-        showGameOver();
-        return;
-    }
-    
+
+    currentHero.draw();
+
+    // Draw wave timer
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Courier New';
+    const timeLeft = Math.ceil((WAVE_DURATION - gameState.waveTimer) / 1000);
+    ctx.fillText(`Следующая волна через: ${timeLeft}s`, 10, 30);
+
     updateUI();
     requestAnimationFrame(gameLoop);
 }
 
 // Start game
 spawnWave();
-gameLoop();
+requestAnimationFrame(gameLoop);
