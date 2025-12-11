@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vampire Survivors Style Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div id="stats">
+                <div>HP: <span id="hp">100</span></div>
+                <div>XP: <span id="xp">0</span></div>
+                <div>Level: <span id="level">1</span></div>
+                <div>Wave: <span id="wave">1</span></div>
+                <div>Hero: <span id="hero-name">Варвар</span></div>
+            </div>
+            <div id="controls">
+                <p>WASD - Движение</p>
+                <p>1 - Переключить героя</p>
+            </div>
+        </div>
+        <div id="game-over" class="hidden">
+            <h1>GAME OVER</h1>
+            <p>Финальный уровень: <span id="final-level">0</span></p>
+            <p>Убито врагов: <span id="final-kills">0</span></p>
+            <button onclick="location.reload()">Играть снова</button>
+        </div>
+        <div id="boss-warning" class="hidden">
+            <h1>⚠️ БОСС ПРИБЛИЖАЕТСЯ ⚠️</h1>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
