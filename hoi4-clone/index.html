@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearts of Iron 4 Clone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <header>
+            <h1>Hearts of Iron IV: Simple Clone</h1>
+            <div id="game-info">
+                <span>Дата: <span id="current-date">1936-01-01</span></span>
+                <span>Страна: <span id="current-country">Germany</span></span>
+                <span>Политическая власть: <span id="political-power">100</span></span>
+            </div>
+        </header>
+
+        <div id="main-content">
+            <aside id="sidebar">
+                <div class="panel">
+                    <h3>Ресурсы</h3>
+                    <div id="resources">
+                        <div>Гражданские заводы: <span id="civilian-factories">20</span></div>
+                        <div>Военные заводы: <span id="military-factories">10</span></div>
+                        <div>Верфи: <span id="dockyards">5</span></div>
+                        <div>Дивизии: <span id="divisions">20</span></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Производство</h3>
+                    <div id="production">
+                        <button onclick="game.buildFactory('civilian')">Строить гражданский завод (50 ПВ)</button>
+                        <button onclick="game.buildFactory('military')">Строить военный завод (50 ПВ)</button>
+                        <button onclick="game.buildFactory('dockyard')">Строить верфь (50 ПВ)</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Военное производство</h3>
+                    <div id="military-production">
+                        <button onclick="game.trainDivision()">Обучить дивизию (20 ПВ)</button>
+                        <button onclick="game.produceEquipment()">Произвести вооружение</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Дипломатия</h3>
+                    <div id="diplomacy">
+                        <select id="target-country">
+                            <option value="France">France</option>
+                            <option value="UK">United Kingdom</option>
+                            <option value="Soviet Union">Soviet Union</option>
+                            <option value="USA">USA</option>
+                            <option value="Italy">Italy</option>
+                        </select>
+                        <button onclick="game.declareWar()">Объявить войну (100 ПВ)</button>
+                        <button onclick="game.improveRelations()">Улучшить отношения (30 ПВ)</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Управление временем</h3>
+                    <button onclick="game.togglePause()">⏸ Пауза</button>
+                    <button onclick="game.setSpeed(1)">▶ Обычная</button>
+                    <button onclick="game.setSpeed(2)">▶▶ Быстрая</button>
+                    <button onclick="game.setSpeed(4)">▶▶▶ Очень быстрая</button>
+                </div>
+            </aside>
+
+            <main id="game-map">
+                <canvas id="world-map" width="800" height="600"></canvas>
+                <div id="map-info">
+                    <h4>Состояние мира</h4>
+                    <div id="countries-list"></div>
+                </div>
+            </main>
+        </div>
+
+        <div id="log-container">
+            <h3>События</h3>
+            <div id="event-log"></div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
