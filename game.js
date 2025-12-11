@@ -13,12 +13,23 @@ window.addEventListener('resize', () => {
 // Игровые переменные
 const game = {
     running: true,
+    paused: false,
     wave: 1,
     kills: 0,
     waveEnemiesKilled: 0,
     enemiesPerWave: 20,
     bossActive: false,
     bossWarningShown: false
+};
+
+// Система улучшений
+const upgrades = {
+    maxHp: { level: 0, name: 'Здоровье', icon: '❤️', description: '+20 к максимальному HP' },
+    damage: { level: 0, name: 'Урон', icon: '⚔️', description: '+5 к урону' },
+    speed: { level: 0, name: 'Скорость', icon: '⚡', description: '+0.5 к скорости' },
+    attackSpeed: { level: 0, name: 'Скорость атаки', icon: '🗡️', description: '-50мс к задержке атаки' },
+    range: { level: 0, name: 'Дальность', icon: '🎯', description: '+30 к дальности атаки' },
+    regen: { level: 0, name: 'Регенерация', icon: '💚', description: '+1 HP в секунду' }
 };
 
 // Классы героев
@@ -55,7 +66,8 @@ const player = {
     currentHero: HEROES.BARBARIAN,
     heroType: 'BARBARIAN',
     lastAttack: 0,
-    projectiles: []
+    projectiles: [],
+    regenTimer: 0
 };
 
 // Управление
@@ -243,8 +255,10 @@ function attack() {
 
 // Обновление UI
 function updateUI() {
-    document.getElementById('hp').textContent = Math.max(0, player.hp);
+    document.getElementById('hp').textContent = Math.max(0, Math.floor(player.hp));
+    document.getElementById('maxhp').textContent = player.maxHp;
     document.getElementById('xp').textContent = player.xp;
+    document.getElementById('xp-needed').textContent = player.level * 100;
     document.getElementById('level').textContent = player.level;
     document.getElementById('wave').textContent = game.wave;
 }
@@ -266,6 +280,82 @@ function showBossWarning() {
     }, 2000);
 }
 
+// Система улучшений
+function showUpgradeMenu() {
+    game.paused = true;
+    const menu = document.getElementById('upgrade-menu');
+    const optionsContainer = document.getElementById('upgrade-options');
+    
+    document.getElementById('upgrade-level').textContent = player.level;
+    
+    // Выбрать 3 случайных улучшения
+    const availableUpgrades = Object.keys(upgrades);
+    const selectedUpgrades = [];
+    
+    while (selectedUpgrades.length < 3 && availableUpgrades.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableUpgrades.length);
+        selectedUpgrades.push(availableUpgrades[randomIndex]);
+        availableUpgrades.splice(randomIndex, 1);
+    }
+    
+    // Создать карточки улучшений
+    optionsContainer.innerHTML = '';
+    selectedUpgrades.forEach(upgradeKey => {
+        const upgrade = upgrades[upgradeKey];
+        const card = document.createElement('div');
+        card.className = 'upgrade-card';
+        card.innerHTML = `
+            <div class="upgrade-icon">${upgrade.icon}</div>
+            <div class="upgrade-name">${upgrade.name}</div>
+            <div class="upgrade-description">${upgrade.description}</div>
+            <div class="upgrade-level">Уровень ${upgrade.level}</div>
+        `;
+        card.onclick = () => applyUpgrade(upgradeKey);
+        optionsContainer.appendChild(card);
+    });
+    
+    menu.classList.remove('hidden');
+}
+
+function applyUpgrade(upgradeKey) {
+    const upgrade = upgrades[upgradeKey];
+    upgrade.level++;
+    
+    switch(upgradeKey) {
+        case 'maxHp':
+            player.maxHp += 20;
+            player.hp += 20;
+            break;
+        case 'damage':
+            player.currentHero.damage += 5;
+            HEROES.BARBARIAN.damage += 5;
+            HEROES.ARCHER.damage += 5;
+            break;
+        case 'speed':
+            player.currentHero.speed += 0.5;
+            HEROES.BARBARIAN.speed += 0.5;
+            HEROES.ARCHER.speed += 0.5;
+            break;
+        case 'attackSpeed':
+            player.currentHero.attackSpeed = Math.max(100, player.currentHero.attackSpeed - 50);
+            HEROES.BARBARIAN.attackSpeed = Math.max(100, HEROES.BARBARIAN.attackSpeed - 50);
+            HEROES.ARCHER.attackSpeed = Math.max(100, HEROES.ARCHER.attackSpeed - 50);
+            break;
+        case 'range':
+            player.currentHero.range += 30;
+            HEROES.BARBARIAN.range += 30;
+            HEROES.ARCHER.range += 30;
+            break;
+        case 'regen':
+            // Регенерация обрабатывается в игровом цикле
+            break;
+    }
+    
+    document.getElementById('upgrade-menu').classList.add('hidden');
+    game.paused = false;
+    updateUI();
+}
+
 // Главный игровой цикл
 let lastTime = Date.now();
 
@@ -276,9 +366,24 @@ function gameLoop() {
     const delta = now - lastTime;
     lastTime = now;
     
+    if (game.paused) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    
     // Очистка
     ctx.fillStyle = '#0f3460';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Регенерация
+    if (upgrades.regen.level > 0) {
+        player.regenTimer += delta;
+        if (player.regenTimer >= 1000) {
+            player.hp = Math.min(player.maxHp, player.hp + upgrades.regen.level);
+            player.regenTimer = 0;
+            updateUI();
+        }
+    }
     
     // Движение игрока
     const speed = player.currentHero.speed;
@@ -336,8 +441,7 @@ function gameLoop() {
             // Проверка уровня
             if (player.xp >= player.level * 100) {
                 player.level++;
-                player.maxHp += 20;
-                player.hp = player.maxHp;
+                showUpgradeMenu();
             }
             
             // Проверка босса
